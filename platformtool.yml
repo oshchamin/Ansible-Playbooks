@@ -1,0 +1,49 @@
+---
+# Create by Oshan Chamika 
+# Mod Date:28/12/2024
+- name: Platformtool placement
+  hosts: app_servers
+  become: yes
+  tasks:
+
+    - name: Create platform-tools directory
+      ansible.builtin.file:
+        path: "/usr/local/platform-tools"
+        state: directory
+        mode: '0755'
+        owner: root
+        group: root
+
+    - name: Unzip file
+      ansible.builtin.unarchive:
+        src: "/home/it/TS-C9-Repo/platform/platform-tools-latest-linux.zip"
+        dest: "/usr/local"
+        remote_src: yes
+        mode: '0755'
+        owner: root
+        group: root
+      register: unzip_result
+
+    - name: Debug unzip output
+      debug:
+        var: unzip_result
+        verbosity: 2
+
+    - name: Add platform-tools to PATH
+      ansible.builtin.lineinfile:
+        path: /etc/profile.d/platform-tools.sh
+        create: yes
+        line: 'export PATH=$PATH:/usr/local/platform-tools'
+        mode: '0644'
+
+    - name: Verify installation
+      command: /usr/local/platform-tools/adb version
+      register: adb_version
+      changed_when: false
+      failed_when: adb_version.rc != 0
+
+    - name: Display ADB version
+      debug:
+        msg: "{{ adb_version.stdout_lines }}"
+        
+        

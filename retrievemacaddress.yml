@@ -1,0 +1,12 @@
+---
+- name: Retrieve IP Address Information
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Run ip addr command
+      command: ip addr
+      register: ip_addr_output
+
+    - name: Display ip addr output
+      debug:
+        var: ip_addr_output.stdout

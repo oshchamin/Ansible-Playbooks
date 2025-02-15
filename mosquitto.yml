@@ -1,0 +1,88 @@
+---
+# Create by Oshan Chamika 
+# Mod Date:28/12/2024
+- name: mosquitto installation and configuration
+  hosts: app_servers
+  become: yes
+  tasks:
+    - name: Install Mosquitto and its dependencies from local repo using dnf localinstall
+      shell: "dnf -y localinstall *.rpm"
+      args:
+        chdir: /home/it/TS-C9-Repo/mosquitto-repo
+
+    - name: display mosquitto version
+      shell: rpm -q mosquitto
+      register: mosquitto_version
+      ignore_errors: yes
+
+    - name: show mosquitto version
+      debug:
+        var: mosquitto_version.stdout
+
+    - name: Start Mosquitto service
+      shell: systemctl start mosquitto
+
+
+    - name: Enable Mosquitto service
+      systemd:
+        name: mosquitto
+        enabled: yes
+
+    - name: Install expect package
+      yum:
+        name: expect
+        state: present
+      become: yes
+
+    
+
+    - name: Create MQTT password file without prompt
+      shell: |
+        expect -c "
+        spawn mosquitto_passwd -c /etc/mosquitto/passwd tsmq
+        expect \"Password:\"
+        send \"Ts@1234\r\"
+        expect \"Reenter password:\"
+        send \"Ts@1234\r\"
+        interact
+        "
+      args:
+        creates: /etc/mosquitto/passwd  # Prevents re-creation if file exists
+      
+
+
+    - name: Remove default Mosquitto configuration
+      file:
+        path: /etc/mosquitto/mosquitto.conf
+        state: absent
+
+    - name: Copy custom Mosquitto configuration
+      copy:
+        src: /home/it/TS-C9-Repo/mosquitto-repo/resources/mosquitto.conf
+        dest: /etc/mosquitto/mosquitto.conf
+        owner: root
+        group: root
+        mode: '0644'
+        remote_src: yes
+
+    - name: Restart Mosquitto service
+      command: systemctl restart mosquitto
+
+    - name: Add firewall rules for MQTT ports
+      firewalld:
+        port: "{{ item }}"
+        permanent: yes
+        state: enabled
+        immediate: yes
+      loop:
+        - 1883/tcp
+        - 9005/tcp
+        - 8883/tcp
+
+    - name: Display firewall rules for MQTT
+      command: firewall-cmd --list-ports
+      register: firewall_ports
+
+    - name: Show added firewall rules
+      debug:
+        msg: "Firewall rules: {{ firewall_ports.stdout }}"

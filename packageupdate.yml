@@ -1,0 +1,25 @@
+---
+# Create by Oshan Chamika 
+# Mod Date:28/12/2024
+- name: Update all packages and install the latest kernel version
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Backup the update report if it exists
+      shell: '[ -f /home/osupdatereport.txt ] && cp /home/osupdatereport.txt /home/osupdatereport-backup.txt'
+      ignore_errors: yes
+
+    - name: Update all packages, including the kernel, and capture the output
+      shell: |
+        dnf update --assumeyes | tee /home/osupdatereport.txt
+      register: update_report
+
+    - name: Display update report
+      debug:
+        var: update_report.stdout_lines
+      when: update_report.stdout_lines is defined
+
+    - name: Display final message
+      debug:
+        msg: "OS update is done and the update package list is inside the file /home/osupdatereport.txt"

@@ -1,0 +1,97 @@
+---
+# Create by Oshan Chamika 
+# Mod Date:28/12/2024
+- name: Install and configure phpMyAdmin
+  hosts: all
+  become: yes
+
+  vars:
+    mysql_password: "Ts@0987654321"
+    phpmyadmin_version: "5.2.1"
+
+  tasks:
+    - name: Install PHP using local RPM files
+      shell: |
+        dnf -y localinstall /home/it/TS-C9-Repo/php-repo/*rpm
+
+    - name: Verify PHP installation
+      shell: |
+        php -i | grep "PHP Version"
+      register: php_version
+
+    - name: Display PHP version
+      debug:
+        var: php_version.stdout
+
+    - name: Make sure the directory exists
+      file:
+        path: /usr/share/nginx/html/phpmyadmin
+        state: directory
+
+    - name: Extract phpMyAdmin binary
+      unarchive:
+        src: /home/it/TS-C9-Repo/phpmyadmin-repo/phpMyAdmin-{{ phpmyadmin_version }}-all-languages.zip
+        dest: /home/it/TS-C9-Repo/phpmyadmin-repo/
+        remote_src: yes
+
+    - name: Copy phpMyAdmin binary to /usr/share/nginx/html/
+      copy:
+        src: /home/it/TS-C9-Repo/phpmyadmin-repo/phpMyAdmin-{{ phpmyadmin_version }}-all-languages/
+        dest: /usr/share/nginx/html/phpmyadmin/
+        owner: root
+        group: root
+        mode: '0755'
+        remote_src: yes
+    
+    - name: Set permissions for phpMyAdmin directory
+      file:
+        path: /usr/share/nginx/html/phpmyadmin
+        owner: nginx
+        group: nginx
+        mode: '0755'
+
+    - name: Replace placeholder with dynamic MySQL password in config.inc.php
+      shell: |
+        sed "s/tsvar1/{{ mysql_password }}/g" "/home/it/TS-C9-Repo/phpmyadmin-repo/resources/config.inc.php.tmp" > "/home/it/TS-C9-Repo/phpmyadmin-repo/resources/config.inc.php"
+
+    - name: Move config.inc.php to phpMyAdmin directory
+      shell: |
+        mv /home/it/TS-C9-Repo/phpmyadmin-repo/resources/config.inc.php /usr/share/nginx/html/phpmyadmin/
+
+
+    - name: Create phpMyAdmin directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: nginx
+        group: nginx
+        mode: '0755'
+      loop:
+        - /var/lib/phpmyadmin
+        - /var/lib/phpmyadmin/tmp
+
+    - name: Set permissions for /var/lib/phpmyadmin/tmp
+      file:
+        path: /var/lib/phpmyadmin/tmp
+        owner: nginx
+        group: nginx
+        mode: '0777'
+        recurse: yes
+
+    - name: Execute SQL script to configure phpMyAdmin database
+      shell: |
+        mysql < /usr/share/nginx/html/phpmyadmin/sql/create_tables.sql -u root -p{{ mysql_password }}
+
+    - name: Alter MySQL root user password
+      shell: |
+        mysql -u root -p{{ mysql_password }} -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '{{ mysql_password }}';"
+
+    - name: Set SELinux context for phpMyAdmin directory
+      shell: |
+        semanage fcontext -a -t httpd_sys_content_t "/usr/share/nginx/html/phpmyadmin(/.*)?"
+        restorecon -Rv /usr/share/nginx/html/phpmyadmin
+
+    - name: Restart Nginx
+      service:
+        name: nginx
+        state: restarted

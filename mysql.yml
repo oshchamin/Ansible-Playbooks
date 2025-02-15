@@ -1,0 +1,103 @@
+---
+- name: Install and Configure MySQL with New Root Password
+  hosts: all
+  gather_facts: false
+  become: true
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+    new_password: Ts@0987654321
+
+  tasks:
+    - name: check if MySQL is installed
+      command: mysql --version
+      register: mysql_version
+      ignore_errors: true
+
+    - name: Install python3
+      dnf:
+        name: python3
+        state: present
+      when: mysql_version.rc != 0
+
+    - name: Install python3-PyMySQL
+      dnf:
+        name: python3-PyMySQL
+        state: present
+      when: mysql_version.rc != 0
+
+    - name: Install MySQL and its dependencies from local repo using dnf localinstall
+      shell: "dnf -y localinstall *.rpm"
+      args:
+        chdir: /home/it/TS-C9-Repo/mysql-repo
+      when: mysql_version.rc != 0
+      
+    - name: Copy my.cnf
+      copy:
+       src: /home/it/TS-C9-Repo/mysql-repo/resource/my.cnf
+       dest: /etc/my.cnf
+       remote_src: true
+
+    - name: Start and enable MySQL service
+      service:
+        name: mysqld
+        state: started
+        enabled: true
+      when: mysql_version.rc != 0
+
+    - name: Wait for MySQL to become available
+      wait_for:
+        port: 3306
+        delay: 10
+        timeout: 30
+      when: mysql_version.rc != 0
+
+    - name: Retrieve MySQL temporary root password
+      shell: "grep 'temporary password' /var/log/mysqld.log | awk '{print $NF}'"
+      register: mysql_temp_password
+      no_log: true  # hides the password in the output
+      when: mysql_version.rc != 0
+
+    - name: Show retrieved temporary password (for debugging)
+      debug:
+        msg: "Temporary Password: {{ mysql_temp_password.stdout }}"
+      when: mysql_temp_password is defined and mysql_version.rc != 0
+      no_log: false  # Set to true after verifying
+
+    - name: Change MySQL root password and update plugin
+      shell: |
+         mysql --connect-expired-password -u root -p'{{ mysql_temp_password.stdout }}' \
+         --execute="
+         ALTER USER 'root'@'localhost' IDENTIFIED WITH 'mysql_native_password' BY '{{ new_password }}';
+         FLUSH PRIVILEGES;"
+      no_log: true
+      register: password_change_result
+      when: mysql_version.rc != 0
+ 
+    - name: Validate root password
+      shell: "mysql -u root -p'{{ new_password }}' -e 'SELECT 1;'"
+      register: password_validation
+      failed_when: password_validation.rc != 0
+      no_log: true
+
+    - name: Debug password validation
+      debug:
+        msg: "Root password successfully changed and validated."
+      when: password_validation.rc == 0
+       
+    - name: Add firewall rules
+      firewalld:
+        zone: public
+        port: 3306/tcp
+        state: enabled
+        permanent: yes
+      ignore_errors: yes
+
+    - name: Reload firewall
+      shell: firewall-cmd --reload
+      ignore_errors: yes
+      
+    
+
+    
+
+

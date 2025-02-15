@@ -1,0 +1,17 @@
+---
+# Created by Oshan Chamika
+# Mod Date: 28/1/2025
+- name: Remove file if it exists
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Check if file exists
+      stat:
+        path: /home/opslink/opslink.log
+      register: file_stat
+      ignore_errors: yes
+
+    - name: Remove the file if it exists
+      shell: truncate -s 0 /path/to/logfile
+      when: file_stat.stat.exists
+      ignore_errors: yes

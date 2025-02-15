@@ -1,0 +1,12 @@
+---
+# Created by Oshan Chamika
+# Mod Date: 28/12/2024
+
+- name: Clear known_hosts on localhost
+  hosts: localhost
+  become: true
+  tasks:
+    - name: Remove known_hosts file
+      file:
+        path: /root/.ssh/known_hosts
+        state: absent

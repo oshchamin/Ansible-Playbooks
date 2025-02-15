@@ -1,0 +1,11 @@
+---
+# Create by Oshan Chamika 
+# Mod Date:28/12/2024
+- name: Install utilities
+  hosts: all
+  become: yes
+  tasks:
+    - name: Install applications from local repo using dnf localinstall
+      shell: "dnf -y localinstall *.rpm"
+      args:
+        chdir: /home/it/TS-C9-Repo/misc-repo

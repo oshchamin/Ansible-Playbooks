@@ -1,0 +1,48 @@
+---
+# Create by Oshan Chamika 
+# Mod Date:28/12/2024
+- name: DevlT install 
+  hosts: app_servers
+  become: yes
+  tasks:
+
+    - name: Install development tools ETS-20min
+      command: yum groupinstall "Development Tools" -y
+      register: dev_tools_install
+      ignore_errors: no
+
+    - name: Debug development tools installation
+      debug:
+        var: dev_tools_install
+        verbosity: 2
+
+    - name: Display development tools installation results
+      debug:
+        msg: "{{ dev_tools_install.stdout_lines | default('No output') }}"
+
+    - name: Install gcc-c++ compiler
+      shell: dnf localinstall /home/it/TS-C9-Repo/gcc-c++/*.rpm -y
+      register: gcc_install
+      ignore_errors: no
+
+    - name: Display gcc installation results
+      debug:
+        msg: "{{ gcc_install.stdout_lines | default('No output') }}"
+
+    - name: Open port 8000/tcp
+      ansible.posix.firewalld:
+        port: 8000/tcp
+        permanent: yes
+        state: enabled
+
+    - name: Open port 5555/tcp
+      ansible.posix.firewalld:
+        port: 5555/tcp
+        permanent: yes
+        state: enabled
+
+    - name: Reload firewall
+      ansible.posix.firewalld:
+        immediate: yes
+        permanent: yes
+        state: enabled

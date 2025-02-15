@@ -1,0 +1,39 @@
+---
+# Create by Oshan Chamika 
+# Mod Date:28/12/2024
+- name: Python & npm install
+  hosts: app_servers
+  become: yes
+  tasks:
+    - name: Find Python RPM files
+      find:
+        paths: /home/opslink/taskforce/python3
+        patterns: "*.rpm"
+        file_type: file
+      register: rpm_files
+
+    - name: Install Python RPM files
+      yum:
+        name: "{{ item.path }}"
+        state: present
+      loop: "{{ rpm_files.files }}"
+      when: rpm_files.matched > 0
+
+    - name: Install node-gyp globally via npm
+      shell: npm install -g node-gyp
+      register: npm_install
+      ignore_errors: no
+      changed_when: "'added' in npm_install.stdout or 'updated' in npm_install.stdout"
+
+    - name: Display npm installation result
+      debug:
+        msg: "{{ npm_install.stdout | default('No output from npm install') }}"
+
+    - name: Verify node-gyp installation
+      command: node-gyp --version
+      register: gyp_version
+      changed_when: false
+
+    - name: Display node-gyp version
+      debug:
+        msg: "node-gyp version: {{ gyp_version.stdout }}"

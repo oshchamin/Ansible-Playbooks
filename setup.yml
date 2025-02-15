@@ -1,0 +1,54 @@
+---
+# Create by Oshan Chamika 
+# Mod Date:28/12/2024
+- name: Set Date, Time, and Timezone from Internet
+  hosts: all
+  become: yes
+  tasks:
+    - name: Install chrony
+      yum:
+        name: chrony
+        state: present
+
+    - name: Enable and start chronyd service
+      systemd:
+        name: chronyd
+        enabled: yes
+        state: started
+
+    - name: Configure NTP servers
+      blockinfile:
+        path: /etc/chrony.conf
+        marker: "# {mark} ANSIBLE MANAGED BLOCK"
+        block: |
+          server 0.centos.pool.ntp.org iburst
+          server 1.centos.pool.ntp.org iburst
+          server 2.centos.pool.ntp.org iburst
+          server 3.centos.pool.ntp.org iburst
+      notify: restart chronyd
+
+    - name: Force time synchronization
+      command: chronyc -a makestep
+      register: time_sync
+      changed_when: "'Synchronized' in time_sync.stdout"
+
+    - name: Display time synchronization status
+      debug:
+        msg: "Time synchronization status: {{ time_sync.stdout }}"
+
+    - name: Set the timezone to UTC+5:30 (Asia/Kolkata)
+      command: timedatectl set-timezone Asia/Kolkata
+
+    - name: Verify timezone
+      command: timedatectl
+      register: timezone_status
+
+    - name: Display timezone and time settings
+      debug:
+        msg: "Timezone and time settings: {{ timezone_status.stdout }}"
+
+  handlers:
+    - name: restart chronyd
+      systemd:
+        name: chronyd
+        state: restarted

@@ -1,0 +1,18 @@
+---
+- name: Check internet connectivity
+  hosts: all
+  tasks:
+    - name: Ping Google's DNS to check internet access
+      command: ping -c 1 8.8.8.8
+      register: ping_result
+      ignore_errors: yes
+
+    - name: Display message if internet is reachable
+      debug:
+        msg: "Internet is reachable."
+      when: ping_result.rc == 0
+
+    - name: Display message if no internet access
+      debug:
+        msg: "No gateway access to internet."
+      when: ping_result.rc != 0

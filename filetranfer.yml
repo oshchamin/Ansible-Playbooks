@@ -1,0 +1,69 @@
+---
+# Created by Oshan Chamika 
+# Mod Date: 28/12/2024
+- name: File transfer
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Install UNZIP
+      dnf:
+        name: unzip
+        state: present
+  
+    - name: Install python3-pip
+      shell: dnf install -y python3-pip
+      register: install_result
+      failed_when: install_result.rc != 0
+
+    - name: Debug message for python3-pip
+      debug:
+        msg: "python3-pip installed successfully"
+      when: install_result.rc == 0
+
+    - name: Install gdown
+      shell: pip install gdown
+      register: gdown_result
+      failed_when: gdown_result.rc != 0
+
+    - name: Debug message for gdown
+      debug:
+        msg: "gdown installed successfully"
+      when: gdown_result.rc == 0
+
+    - name: Create directory /home/it
+      file:
+        path: /home/it
+        state: directory
+        mode: '0755'
+
+    - name: Check if zipfile matching pattern exists
+      find:
+        paths: /home/it/
+        patterns: "ts-bluebird*.zip"
+      register: file_check
+
+    - name: Download file from G-drive
+      shell: gdown --no-cookies --id 1LQoSyK2qbo5oeqsRa-czg6wQXxUqEdYu -O /home/it/ts-bluebird.zip
+      when: file_check.matched == 0
+      register: download_result
+
+    - name: Debug download result
+      debug:
+        var: download_result
+      when: download_result is defined
+
+    - name: Debug message for file download
+      debug:
+        msg: "File downloaded successfully"
+      when: download_result is defined
+
+    - name: Extract file
+      unarchive:
+        src: /home/it/ts-bluebird.zip
+        dest: /home/it/
+        remote_src: yes
+      
+    - name: Debug message for file extraction
+      debug:
+        msg: "File extracted successfully"

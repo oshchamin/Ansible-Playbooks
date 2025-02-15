@@ -1,0 +1,94 @@
+---
+# Create by Oshan Chamika 
+# Mod Date:28/12/2024
+- name: Update all packages and install a specific kernel version
+  hosts: all
+  become: yes
+
+  tasks:
+
+    - name: Backup the update report if it exists
+      shell: '[ -f /home/osupdatereport.txt ] && cp /home/osupdatereport.txt /home/osupdatereport-backup.txt'
+      ignore_errors: yes
+
+    - name: Update all packages except the kernel and capture the output
+      shell: |
+        dnf update --assumeyes --exclude=kernel* | tee /home/osupdatereport.txt
+      register: update_report
+
+    - name: Display update report
+      debug:
+        msg: "Update report: {{ update_report.stdout }}"
+
+    - name: Ask if the user wants to update the kernel
+      pause:
+        prompt: |
+          Do you want to update the kernel? (y/n):
+      register: kernel_update_choice
+
+    - name: Fail if the user provides invalid input
+      fail:
+        msg: "Invalid input. Please enter 'y' or 'n'."
+      when: kernel_update_choice.user_input not in ['y', 'n']
+
+    - name: Get the list of available kernel versions
+      shell: dnf list kernel --showduplicates | grep 'kernel' | awk '{print $2}' | sort -V
+      register: kernel_versions_raw
+      when: kernel_update_choice.user_input == 'y'
+    
+    - name: Extract kernel versions into a list
+      set_fact:
+        kernel_versions: "{{ kernel_versions_raw.stdout_lines | map('regex_replace', '^(kernel-\\S+)', '\\1') | list }}"
+      when: kernel_update_choice.user_input == 'y'
+
+    - name: Display available kernel versions
+      debug:
+        msg: "{{ kernel_versions }}"
+      when: kernel_update_choice.user_input == 'y'
+
+    - name: Prompt for the target kernel version
+      pause:
+        prompt: |
+          Enter the target kernel version from the list above (copy-paste one of the displayed versions):
+      register: target_kernel_input
+      when: kernel_update_choice.user_input == 'y'
+
+    - name: Validate chosen kernel version
+      fail:
+        msg: "The specified kernel version {{ target_kernel_input.user_input }} is not available."
+      when: kernel_update_choice.user_input == 'y' and target_kernel_input.user_input not in kernel_versions
+      
+
+    - name: Install the specified kernel version
+      shell: dnf install -y kernel-{{ target_kernel_input.user_input }}
+      register: install_result
+      when: kernel_update_choice.user_input == 'y'
+
+    - name: Display kernel installation result
+      debug:
+        msg: "Kernel version {{ target_kernel_input.user_input }} installation result: {{ install_result.stdout }}"
+      when: kernel_update_choice.user_input == 'y'
+
+    - name: Set the newly installed kernel as default
+      command: grubby --set-default /boot/vmlinuz-{{ target_kernel_input.user_input }}.x86_64
+      register: grub_set_default_result
+      when: kernel_update_choice.user_input == 'y' and install_result.rc == 0
+
+    - name: Backup the update kernel if it exists
+      shell: '[ -f /home/kernal.txt ] && cp /home/kernal.txt /home/kernal-backup.txt'
+      ignore_errors: yes
+      when: kernel_update_choice.user_input == 'y'
+
+    - name: Run grubby command to get the default kernel
+      shell: grubby --default-kernel | tee /home/kernal.txt
+      register: output
+      when: kernel_update_choice.user_input == 'y'
+
+    - name: Display the default kernel
+      debug:
+        msg: "The default kernel is: {{ output.stdout }} and it inside the file /home/kernal.txt"
+      when: kernel_update_choice.user_input == 'y'
+
+    - name: Display the msgs
+      debug:
+        msg: "OS update is done and the update package list is inside the file /home/osupdatereport.txt"

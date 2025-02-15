@@ -1,0 +1,30 @@
+---
+# Create by Oshan Chamika 
+# Mod Date:28/12/2024
+- name: Execute Python Script to Email Log File
+  hosts: localhost
+  become: yes
+  tasks:
+    - name: install pip 
+      dnf:
+        name: pip
+        state: present
+        
+    - name: install secure-smtplib via pip 
+      pip:
+        name: secure-smtplib
+        state: present
+
+    - name: Ensure the Python script is present
+      copy:
+        src: /home/opslink/taskforce/send_log.py
+        dest: /home/opslink/send_log.py
+        mode: '0755'
+
+    - name: Run the Python script
+      command: python3 /home/opslink/send_log.py
+      register: email_log_result
+
+    - name: Show the output of the script
+      debug:
+        var: email_log_result.stdout

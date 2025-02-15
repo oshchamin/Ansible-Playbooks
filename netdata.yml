@@ -1,0 +1,77 @@
+---
+# Create by Oshan Chamika 
+# Mod Date:28/12/2024
+- name: Install and Enable Netdata
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Install EPEL repository
+      dnf:
+        name: epel-release
+        state: present
+
+    - name: Install Netdata
+      dnf:
+        name: netdata
+        state: present
+
+    - name: Enable and start Netdata service
+      systemd:
+        name: netdata
+        state: started
+        enabled: yes
+
+    - name: Allow Nginx to connect to the network (SELinux)
+      command: setsebool -P httpd_can_network_connect on
+
+    - name: Open Netdata port in firewall
+      firewalld:
+        port: 19999/tcp
+        permanent: yes
+        state: enabled
+
+    - name: Reload firewall
+      command: firewall-cmd --reload
+
+    - name: Test Netdata access
+      shell: curl http://127.0.0.1:19999
+      register: curl_output
+
+    - name: Print Netdata test output
+      debug:
+        var: curl_output.stdout
+    
+    - name: Create an empty file
+      file:
+        path: /etc/nginx/default.d/netdata.conf
+        state: touch
+        owner: root
+        group: root
+        mode: '0644'
+
+    - name: Add Netdata location block to nginx.conf
+      blockinfile:
+        path: /etc/nginx/default.d/netdata.conf
+        marker: "# {mark} ANSIBLE MANAGED BLOCK FOR NETDATA"
+        block: |
+          location /netdata/ {
+              proxy_pass http://127.0.0.1:19999/;
+              proxy_set_header Host $host;
+              proxy_http_version 1.1;
+              proxy_set_header Upgrade $http_upgrade;
+              proxy_set_header Connection "upgrade";
+          }
+
+    - name: Test Nginx configuration
+      command: nginx -t
+      register: nginx_test
+    
+    - name: Print Nginx test output
+      debug:
+        var: nginx_test.stdout
+
+    - name: Reload Nginx
+      systemd:
+        name: nginx
+        state: reloaded

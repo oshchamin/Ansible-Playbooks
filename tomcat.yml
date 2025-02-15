@@ -1,0 +1,154 @@
+---
+# Create by Oshan Chamika 
+# Mod Date:28/12/2024
+- name: Tomcat Installation and Configuration
+  hosts: app_servers
+  become: yes
+  tasks:
+
+    - name: Create tomcat group
+      command: groupadd tomcat
+      ignore_errors: yes
+
+    - name: Create tomcat user
+      command: useradd -M -s /bin/nologin -g tomcat -d /opt/tomcat tomcat
+      ignore_errors: yes
+
+    - name: Create Tomcat installation directory
+      shell: mkdir -p /opt/tomcat
+     
+
+    - name: Extract Tomcat tar.gz to /opt/tomcat
+      unarchive:
+        src: /home/it/TS-C9-Repo/tomcat-repo/apache-tomcat-9.0.96.tar.gz
+        dest: /opt/tomcat
+        remote_src: yes
+        extra_opts:
+          - --strip-components=1
+
+    - name: Display completion message
+      debug:
+        msg: "Tomcat has been extracted"
+
+    - name: Change directory group ownership to tomcat
+      file:
+        path: /opt/tomcat
+        group: tomcat
+        recurse: yes
+        state: directory
+
+    - name: Set group read permissions for conf directory
+      file:
+        path: /opt/tomcat/conf
+        mode: 'g+r'
+        recurse: yes
+        state: directory
+
+    - name: Change ownership of specific Tomcat directories
+      file:
+        path: "{{ item }}"
+        owner: tomcat
+        recurse: yes
+        state: directory
+      loop:
+        - /opt/tomcat/webapps
+        - /opt/tomcat/work
+        - /opt/tomcat/temp
+        - /opt/tomcat/logs
+
+    - name: Print success message
+      debug:
+        msg: "Tomcat permissions set successfully."
+
+   
+        
+
+    - name: Make init.d directory
+      shell: mkdir -p /etc/init.d
+
+
+    - name: Copy Tomcat init script to /etc/init.d/
+      copy:
+        src: /home/it/TS-C9-Repo/tomcat-repo/resource/tomcat
+        dest: /etc/init.d/tomcat
+        mode: '0755'
+        remote_src: yes
+        
+
+    - name: Create symbolic link for Tomcat
+      file:
+        src: /etc/init.d/tomcat
+        dest: /etc/rc.d/S99tomcat
+        state: link
+      become: yes
+
+    - name: Ensure Tomcat init script is executable
+      file:
+        path: /etc/init.d/tomcat
+        mode: '0755'
+      become: yes
+
+    - name: Auto start rc-local
+      copy:
+        src: /home/it/TS-C9-Repo/tomcat-repo/resource/rc.local
+        dest: /etc/rc.d/rc.local
+        mode: '0755'
+        remote_src: yes
+
+    - name: Enable rc-local
+      systemd:
+        name: rc-local
+        enabled: yes
+        state: started
+        
+
+    - name: Remove unnecessary files
+      file:
+        path: "{{ item }}"
+        state: absent
+        
+      loop:
+        - /opt/tomcat/webapps/ROOT/*.png
+        - /opt/tomcat/webapps/ROOT/favicon.ico
+        - /opt/tomcat/webapps/ROOT/index.jsp
+        - /opt/tomcat/webapps/ROOT/RELEASE-NOTES.txt
+        - /opt/tomcat/webapps/ROOT/tomcat.css
+        - /opt/tomcat/webapps/ROOT/tomcat.svg
+
+    - name: Copy TS index files
+      shell: |
+        cp -R /home/it/TS-C9-Repo/tomcat-repo/resource/TS/index.html /opt/tomcat/webapps/ROOT/
+        cp -R /home/it/TS-C9-Repo/tomcat-repo/resource/TS/css /opt/tomcat/webapps/ROOT/
+        cp -R /home/it/TS-C9-Repo/tomcat-repo/resource/TS/img /opt/tomcat/webapps/ROOT/
+
+    - name: Copy error pages
+      shell: |
+        cp -R /home/it/TS-C9-Repo/tomcat-repo/resource/files/*.jsp /opt/tomcat/webapps/ROOT/
+
+    - name: Rename web.xml to web.xml.bak
+      command: mv /opt/tomcat/conf/web.xml /opt/tomcat/conf/web.xml.bak
+      
+
+    - name: Copy new web.xml file
+      copy:
+        src: /home/it/TS-C9-Repo/tomcat-repo/resource/web.xml
+        dest: /opt/tomcat/conf/web.xml
+        remote_src: yes
+
+    - name: Add firewall rules
+      firewalld:
+        zone: public
+        port: 8080/tcp
+        state: enabled
+        permanent: yes
+      
+
+    - name: Reload firewall
+      shell: firewall-cmd --reload
+      
+
+    - name: Reboot the system
+      reboot:
+        reboot_timeout: 600  # Time in seconds to wait for the machine to reboot
+        test_command: whoami  # Command to check if the system is back online
+      

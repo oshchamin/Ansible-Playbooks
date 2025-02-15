@@ -1,0 +1,52 @@
+---
+# Create by Oshan Chamika 
+# Mod Date:28/12/2024
+- name: Install and configure Nginx
+  hosts: all
+  become: yes
+  tasks:
+    - name: Install Nginx and its dependencies from local repo using dnf localinstall
+      shell: "dnf -y localinstall *.rpm"
+      args:
+        chdir: /home/it/TS-C9-Repo/nginx-repo
+
+    - name: Copy Nginx resources to the web directory
+      copy:
+        src: "{{ item }}"
+        dest: "/usr/share/nginx/html/"
+        remote_src: yes
+      with_items:
+        - "/home/it/TS-C9-Repo/httpd-repo/resource/TS/index.html"
+        - "/home/it/TS-C9-Repo/httpd-repo/resource/TS/css"
+        - "/home/it/TS-C9-Repo/httpd-repo/resource/TS/img"
+
+    - name: Change permissions of Nginx HTML directory
+      file:
+        path: "/usr/share/nginx/html/"
+        mode: '0755'
+        recurse: yes
+
+    - name: Set SELinux context for Nginx HTML directory
+      command: chcon -R -t httpd_sys_content_t /usr/share/nginx/html/
+      ignore_errors: yes
+      
+    - name: Add firewall rules for HTTP and HTTPS
+      command: firewall-cmd --permanent --zone=public --add-service={{ item }}
+      with_items:
+        - http
+        - https
+      ignore_errors: yes
+
+    - name: Reload the firewall to apply changes
+      command: firewall-cmd --reload
+      ignore_errors: yes
+
+    - name: Start Nginx service
+      systemd:
+        name: nginx
+        state: started
+        enabled: yes
+
+    - name: Display confirmation message
+      debug:
+        msg: "Nginx Configuration Done.. !!! Check the http://{{ ansible_host }} [OK]"

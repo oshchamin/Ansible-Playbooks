@@ -1,0 +1,45 @@
+---
+# Create by Oshan Chamika 
+# Mod Date:28/12/2024
+- name: NodeJS
+  hosts: app_servers
+  become: yes
+  tasks:
+    - name: Find Node.js RPMs
+      ansible.builtin.find:
+        paths: /home/it/TS-C9-Repo/node
+        patterns: "*.rpm"
+      register: rpm_files
+
+    - name: Install Node.js RPMs
+      ansible.builtin.yum:
+        name: "{{ item.path }}"
+        state: present
+      with_items: "{{ rpm_files.files }}"
+
+    - name: Debug rpm installation output
+      debug:
+        var: rpm_result
+        verbosity: 2
+
+    - name: Display stdout
+      debug:
+        msg: "{{ rpm_result.stdout_lines | default('No output') }}"
+
+    - name: Verify NodeJS installation
+      command: node --version
+      register: node_version
+      changed_when: false
+
+    - name: Display NodeJS version
+      debug:
+        msg: "NodeJS version: {{ node_version.stdout }}"
+
+    - name: Verify NPM installation
+      command: npm --version
+      register: npm_version
+      changed_when: false
+
+    - name: Display NPM version
+      debug:
+        msg: "NPM version: {{ npm_version.stdout }}"
